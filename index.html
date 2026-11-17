@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bumban</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== STILLINGAR eru í JavaScript neðst (CONFIG) ===== */
+:root{
+  --bg:#F3F4F1; --surface:#FFFFFF; --ink:#000000; --muted:#596059; --line:#D5D8D2;
+  --win:#1E6B3C; --loss:#B42318; --t1:#E8590C; --t2:#1C64C8; --t3:#C99500; --focus:#1C64C8;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D130F; --surface:#151D17; --ink:#F2F4F0; --muted:#9AA39B; --line:#2A352C;
+    --win:#2E8B57; --loss:#C8372D; --t1:#FF8A4C; --t2:#5C9BFF; --t3:#F2C230; --focus:#5C9BFF; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D130F; --surface:#151D17; --ink:#F2F4F0; --muted:#9AA39B; --line:#2A352C;
+  --win:#2E8B57; --loss:#C8372D; --t1:#FF8A4C; --t2:#5C9BFF; --t3:#F2C230; --focus:#5C9BFF; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.5 Barlow,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3,.num{font-family:"Barlow Condensed","Arial Narrow",Arial,sans-serif}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+/* Haus: KR röndótt */
+.crest{
+  background:repeating-linear-gradient(90deg,#000 0 22px,#fff 22px 44px);
+  border-bottom:4px solid #000;
+}
+.crest-inner{max-width:680px;margin:0 auto;padding:28px 16px 0;display:flex;align-items:flex-end}
+.wordmark{background:#000;color:#fff;padding:10px 18px 4px;line-height:1}
+.wordmark h1{margin:0;font-size:clamp(3rem,13vw,4.75rem);font-weight:800;letter-spacing:-.01em}
+.wordmark p{margin:2px 0 8px;font:500 .95rem/1.2 Barlow,Arial,sans-serif;color:#C9CCC6}
+
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+nav .in{max-width:680px;margin:0 auto;display:flex;padding:0 8px}
+nav a{flex:1;text-align:center;padding:14px 4px 12px;text-decoration:none;color:var(--muted);font:700 1.15rem/1 "Barlow Condensed",Arial,sans-serif;border-bottom:3px solid transparent}
+nav a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--ink)}
+
+main{max-width:680px;margin:0 auto;padding:20px 16px 48px}
+section[hidden]{display:none}
+h2{font-size:2rem;font-weight:700;margin:4px 0 4px;line-height:1.1}
+.sub{color:var(--muted);margin:0 0 16px}
+.banner{border:1px dashed var(--muted);padding:10px 12px;margin-bottom:18px;font-size:.92rem;color:var(--muted)}
+.banner.err{border-color:var(--t1);color:var(--ink)}
+
+/* Staðan */
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%}
+th,td{padding:8px 4px;text-align:right;white-space:nowrap}
+th{font:600 .8rem/1 Barlow,Arial,sans-serif;color:var(--muted);border-bottom:2px solid var(--ink);padding-top:12px}
+td{border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th:nth-child(2),td:nth-child(2){text-align:left;width:100%}
+td.name{text-transform:capitalize;font-weight:500}
+td.pos{font:700 1.05rem/1 "Barlow Condensed",Arial,sans-serif;color:var(--muted);width:3.2em;text-align:left;padding-left:8px}
+.mv{display:inline-block;margin-left:5px;font:700 .78rem/1 "Barlow Condensed",Arial,sans-serif;vertical-align:1px}
+.away{display:inline-block;margin-left:6px;padding:1px 5px 0;font:600 .75rem/1.3 Barlow,Arial,sans-serif;color:var(--muted);border:1px solid var(--muted);border-radius:2px;text-transform:none;vertical-align:1px}
+tr.is-away td{color:var(--muted)}tr.is-away td.name a{color:var(--muted)}
+.mv.up{color:var(--win)}.mv.down{color:var(--loss)}.mv.same,.mv.new{color:var(--muted);font-weight:600}
+td.pts{font:700 1.2rem/1 "Barlow Condensed",Arial,sans-serif}
+tr:nth-child(-n+3) td.pos{color:var(--ink)}
+.trend{display:inline-block;margin-left:6px;font:700 .8rem/1 "Barlow Condensed",Arial,sans-serif;vertical-align:1px;white-space:nowrap}
+.trend.up{color:var(--loss)}
+.trend.down{color:var(--t2)}
+.note{font-size:.9rem;color:var(--muted);margin-top:10px}
+
+/* Velja lið */
+.count{font:700 1.4rem/1 "Barlow Condensed",Arial,sans-serif}
+.roster{list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.roster label{display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--surface);border:1px solid var(--line);cursor:pointer;text-transform:capitalize}
+.roster input{width:18px;height:18px;accent-color:var(--ink);margin:0}
+.roster .r{margin-left:auto;color:var(--muted);font:600 .85rem/1 "Barlow Condensed",Arial,sans-serif}
+.roster label:has(input:checked){border-color:var(--ink);box-shadow:inset 3px 0 0 var(--ink)}
+.roster .x{margin-left:auto;background:none;border:0;color:var(--muted);cursor:pointer;padding:0 2px;font-size:1.1rem}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.row input[type=text],.row input[type=date],.row select{flex:1;min-width:140px;padding:10px;background:var(--surface);border:1px solid var(--line)}
+.btn{padding:10px 16px;border:2px solid var(--ink);background:var(--surface);cursor:pointer;font-weight:600}
+.btn.primary{background:var(--ink);color:var(--bg)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.seg{display:inline-flex;border:2px solid var(--ink)}
+.seg button{border:0;background:var(--surface);padding:8px 16px;cursor:pointer;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.lbl{font-weight:600;margin-right:10px}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:18px 0}
+
+.teams{display:grid;gap:10px;margin:18px 0 12px}
+@media (min-width:560px){.teams.n2{grid-template-columns:1fr 1fr}.teams.n3{grid-template-columns:1fr 1fr 1fr}}
+.team{background:var(--surface);border:1px solid var(--line);border-top:8px solid var(--tc)}
+.team h3{margin:0;padding:10px 12px 6px;font-size:1.5rem;display:flex;justify-content:space-between;align-items:baseline}
+.team h3 span{font:500 .9rem/1 Barlow,Arial,sans-serif;color:var(--muted)}
+.team ol{margin:0;padding:0 0 8px;list-style:none}
+.team li button{display:block;width:100%;text-align:left;border:0;background:none;padding:7px 12px;cursor:pointer;text-transform:capitalize}
+.team li button:hover{background:var(--bg)}
+.team li .g{color:var(--muted);text-transform:none;font-size:.85rem}
+.hint{font-size:.9rem;color:var(--muted)}
+.ok{color:var(--win);font-weight:600}.bad{color:var(--loss);font-weight:600}
+td.name a{color:inherit;text-decoration:none;border-bottom:1px dotted var(--muted)}
+details.paste{background:var(--surface);border:1px solid var(--line);padding:10px 12px;margin-bottom:12px}
+details.paste summary{cursor:pointer;font-weight:600}
+details.paste textarea{min-height:110px}
+.unm{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px}
+.unm li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px;border:1px solid var(--line)}
+.unm li b{flex:1 1 100%;font-weight:600}
+.unm select{padding:7px;background:var(--surface);border:1px solid var(--line);flex:1}
+.unm button{padding:7px 10px;border:1px solid var(--ink);background:var(--surface);cursor:pointer}
+.back{display:inline-block;margin-bottom:10px;color:var(--muted);text-decoration:none}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0 18px}
+.stats div{background:var(--surface);border:1px solid var(--line);padding:8px 10px}
+.stats b{display:block;font:700 1.6rem/1 "Barlow Condensed",Arial,sans-serif}
+.stats span{font-size:.8rem;color:var(--muted)}
+.form{display:flex;gap:4px;margin:6px 0 18px}
+.form span{width:30px;height:30px;display:grid;place-items:center;font:700 1rem/1 "Barlow Condensed",Arial,sans-serif;color:#fff}
+.f-sigur{background:var(--win)}.f-tap{background:var(--loss)}.f-jafntefli,.f-2{background:var(--muted)}
+h3.sec{font-size:1.35rem;margin:18px 0 6px}
+.mates{list-style:none;padding:0;margin:0;background:var(--surface);border:1px solid var(--line)}
+.mates li{display:flex;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.mates li:last-child{border-bottom:0}
+.mates a{color:inherit;text-transform:capitalize;font-weight:500;text-decoration:none}
+.mates small{color:var(--muted);white-space:nowrap}
+
+/* Úrslit */
+.choices{display:grid;gap:6px;margin:12px 0 16px}
+.choices label{display:flex;align-items:center;gap:10px;padding:12px;background:var(--surface);border:1px solid var(--line);cursor:pointer}
+.choices label:has(input:checked){border-color:var(--ink);box-shadow:inset 4px 0 0 var(--win)}
+.choices input{accent-color:var(--ink);width:18px;height:18px;margin:0}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--tc);display:inline-block}
+textarea{width:100%;min-height:150px;margin-top:12px;padding:10px;background:var(--surface);border:1px solid var(--line);font:400 .85rem/1.5 ui-monospace,Menlo,Consolas,monospace;color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="crest">
+  <div class="crest-inner">
+    <div class="wordmark"><h1>Bumban</h1><p>Fimmtudagar kl. 21:20 í KR</p></div>
+  </div>
+</header>
+<nav aria-label="Síður"><div class="in">
+  <a href="#stadan" data-view="stadan">Staðan</a>
+  <a href="#lid" data-view="lid">Velja lið</a>
+  <a href="#urslit" data-view="urslit">Úrslit</a>
+</div></nav>
+
+<main>
+  <div id="status"></div>
+
+  <section id="v-stadan">
+    <h2 id="st-title">Staðan</h2>
+    <p class="sub" id="st-sub"></p>
+    <div class="tablewrap"><table>
+      <thead><tr>
+        <th style="text-align:left">#</th><th>Leikmaður</th><th title="Leikir">L</th><th title="Sigrar">S</th>
+        <th title="Jafntefli">J</th><th title="Töp">T</th><th>Stig</th><th title="Meðalstig í leik">Meðal</th>
+      </tr></thead>
+      <tbody id="st-body"></tbody>
+    </table></div>
+    <p class="note" id="st-note"></p>
+  </section>
+
+  <section id="v-lid" hidden>
+    <h2>Hverjir mæta?</h2>
+    <p class="sub">Hakaðu við þá sem sögðu já á Facebook. <span class="count" id="pk-count">0</span> valdir.</p>
+    <details class="paste"><summary>Líma nöfn úr könnuninni</summary>
+      <p class="hint">Afritaðu listann yfir þá sem sögðu já og límdu hann hér. Eitt nafn í línu eða aðskilin með kommu.</p>
+      <textarea id="pk-paste" aria-label="Nöfn úr könnun"></textarea>
+      <button class="btn" id="pk-paste-go">Haka við</button>
+      <div id="pk-paste-out"></div>
+    </details>
+    <div class="row"><input type="text" id="pk-filter" placeholder="Leita að leikmanni" aria-label="Leita að leikmanni"></div>
+    <ul class="roster" id="pk-roster"></ul>
+    <div class="row">
+      <input type="text" id="pk-new" placeholder="Nýr leikmaður" aria-label="Nafn nýs leikmanns">
+      <button class="btn" id="pk-new-add">Bæta við</button>
+    </div>
+    <div class="row">
+      <input type="text" id="pk-guest" placeholder="Gestur, t.d. Gunnar +1" aria-label="Nafn gests">
+      <button class="btn" id="pk-guest-add">Bæta við gesti</button>
+    </div>
+    <div class="controls">
+      <span class="lbl">Fjöldi liða</span>
+      <div class="seg" role="group" aria-label="Fjöldi liða">
+        <button data-n="2" aria-pressed="true">2</button><button data-n="3" aria-pressed="false">3</button>
+      </div>
+      <button class="btn primary" id="pk-go">Skipta í lið</button>
+    </div>
+    <div id="pk-out"></div>
+  </section>
+
+  <section id="v-player" hidden><div id="pl-out"></div></section>
+
+  <section id="v-urslit" hidden>
+    <h2>Hvernig fór?</h2>
+    <div id="rs-out"></div>
+  </section>
+</main>
+
+<script>
+/* ================= STILLINGAR =================
+   sheetId: auðkenni Google Sheet skjalsins (hlutinn á milli /d/ og /edit í slóðinni).
+   Skjalinu þarf að deila: Allir með hlekkinn > Lesandi.
+   season: núverandi tímabil, eins og það er skrifað í dálkinn tímabil.
+   Autt sheetId sýnir sýnigögn úr gamla Excel skjalinu.
+   scriptUrl: slóð Apps Script vefforritsins (sjá apps-script.gs). Með henni vistar síðan
+   úrslit, lið og nýja leikmenn beint í skjalið, svo allt virkar úr síma. */
+const CONFIG = {
+  sheetId: '13LgRldA3jOaq04UtzOJrmNqkLey41ewe_y7Yav3_cqU',
+  scriptUrl: '',
+  minTogether: 2,
+  awayWeeks: 3,          // meira en þetta margar vikur frá síðasta leik = merkt
+  upphafDate: '2026-09-30',  // leikir í Upphafsstaða teljast spilaðir í síðasta lagi þennan dag   // lágmarksfjöldi leikja saman til að birtast sem besti/versti samherji
+  season: 'haust 2026',
+  points: { 'sigur': 3, 'jafntefli': 2, '2. sæti': 1, 'tap': 0 },
+  streak: 3   // fjöldi sigra eða tapa í röð sem þarf til að sýna ör
+};
+
+const DEMO_UPPHAF = [{"tímabil": "haust 2026", "nafn": "andri", "leikir": 3, "sigur": 3, "jafntefli": 0, "tap": 0, "stig": 9}, {"tímabil": "haust 2026", "nafn": "hilmar", "leikir": 2, "sigur": 2, "jafntefli": 0, "tap": 0, "stig": 6}, {"tímabil": "haust 2026", "nafn": "hroar", "leikir": 3, "sigur": 2, "jafntefli": 0, "tap": 1, "stig": 6}, {"tímabil": "haust 2026", "nafn": "kári", "leikir": 2, "sigur": 2, "jafntefli": 0, "tap": 0, "stig": 6}, {"tímabil": "haust 2026", "nafn": "oskar", "leikir": 3, "sigur": 1, "jafntefli": 0, "tap": 2, "stig": 3}, {"tímabil": "haust 2026", "nafn": "gunnar", "leikir": 1, "sigur": 0, "jafntefli": 1, "tap": 0, "stig": 1}, {"tímabil": "haust 2026", "nafn": "sveinn", "leikir": 2, "sigur": 0, "jafntefli": 1, "tap": 1, "stig": 1}, {"tímabil": "haust 2026", "nafn": "marri", "leikir": 2, "sigur": 1, "jafntefli": 1, "tap": 0, "stig": 4}, {"tímabil": "haust 2026", "nafn": "krissi", "leikir": 1, "sigur": 0, "jafntefli": 0, "tap": 1, "stig": 0}, {"tímabil": "haust 2026", "nafn": "grimur", "leikir": 1, "sigur": 0, "jafntefli": 0, "tap": 1, "stig": 0}, {"tímabil": "haust 2026", "nafn": "davíð", "leikir": 1, "sigur": 1, "jafntefli": 0, "tap": 0, "stig": 3}, {"tímabil": "haust 2026", "nafn": "helgi", "leikir": 2, "sigur": 1, "jafntefli": 0, "tap": 1, "stig": 3}, {"tímabil": "haust 2026", "nafn": "margeir", "leikir": 3, "sigur": 1, "jafntefli": 0, "tap": 2, "stig": 3}, {"tímabil": "haust 2026", "nafn": "illugi", "leikir": 2, "sigur": 0, "jafntefli": 1, "tap": 1, "stig": 1}, {"tímabil": "haust 2026", "nafn": "jonatan", "leikir": 0, "sigur": 0, "jafntefli": 0, "tap": 0, "stig": 0}, {"tímabil": "haust 2026", "nafn": "snæi", "leikir": 2, "sigur": 0, "jafntefli": 0, "tap": 2, "stig": 0}, {"tímabil": "haust 2026", "nafn": "steinar", "leikir": 1, "sigur": 0, "jafntefli": 0, "tap": 1, "stig": 0}, {"tímabil": "haust 2026", "nafn": "dagur", "leikir": 0, "sigur": 0, "jafntefli": 0, "tap": 0, "stig": 0}, {"tímabil": "haust 2026", "nafn": "fannar", "leikir": 1, "sigur": 0, "jafntefli": 0, "tap": 1, "stig": 0}, {"tímabil": "haust 2026", "nafn": "daniel", "leikir": 1, "sigur": 0, "jafntefli": 0, "tap": 1, "stig": 0}, {"tímabil": "haust 2026", "nafn": "emmi", "leikir": 0, "sigur": 0, "jafntefli": 0, "tap": 0, "stig": 0}, {"tímabil": "haust 2026", "nafn": "enok", "leikir": 1, "sigur": 1, "jafntefli": 0, "tap": 0, "stig": 3}];
+const DEMO_LEIKIR = [{"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "gunnar", "lið": "", "úrslit": "sigur"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "sveinn", "lið": "", "úrslit": "sigur"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "krissi", "lið": "", "úrslit": "sigur"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "grimur", "lið": "", "úrslit": "sigur"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "jonatan", "lið": "", "úrslit": "2. sæti"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "hilmar", "lið": "", "úrslit": "2. sæti"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "illugi", "lið": "", "úrslit": "2. sæti"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "oskar", "lið": "", "úrslit": "2. sæti"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "snæi", "lið": "", "úrslit": "2. sæti"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "margeir", "lið": "", "úrslit": "tap"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "andri", "lið": "", "úrslit": "tap"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "hroar", "lið": "", "úrslit": "tap"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "dagur", "lið": "", "úrslit": "tap"}, {"dagsetning": "2026-09-03", "tímabil": "haust 2026", "nafn": "marri", "lið": "", "úrslit": "tap"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "hroar", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "gunnar", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "davíð", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "illugi", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "fannar", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "kári", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "sveinn", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "margeir", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "jonatan", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-01", "tímabil": "haust 2026", "nafn": "enok", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-08", "tímabil": "haust 2026", "nafn": "andri", "lið": "", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-08", "tímabil": "haust 2026", "nafn": "hilmar", "lið": "", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-08", "tímabil": "haust 2026", "nafn": "sveinn", "lið": "", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-08", "tímabil": "haust 2026", "nafn": "margeir", "lið": "", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-08", "tímabil": "haust 2026", "nafn": "gunnar", "lið": "", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-08", "tímabil": "haust 2026", "nafn": "jonatan", "lið": "", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-08", "tímabil": "haust 2026", "nafn": "davíð", "lið": "", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-08", "tímabil": "haust 2026", "nafn": "illugi", "lið": "", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "andri", "lið": "1", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "sveinn", "lið": "1", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "gunnar", "lið": "1", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "oskar", "lið": "1", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "blöndal", "lið": "1", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "hilmar", "lið": "2", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "margeir", "lið": "2", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "jonatan", "lið": "2", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "daniel", "lið": "2", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-15", "tímabil": "haust 2026", "nafn": "adrian", "lið": "2", "úrslit": "jafntefli"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "hilmar", "lið": "1", "úrslit": "2. sæti"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "oskar", "lið": "1", "úrslit": "2. sæti"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "illugi", "lið": "1", "úrslit": "2. sæti"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "emmi", "lið": "1", "úrslit": "2. sæti"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "dagur", "lið": "1", "úrslit": "2. sæti"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "gunnar", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "enok", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "krissi", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "snæi", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "frikki", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "jonatan", "lið": "3", "úrslit": "tap"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "hroar", "lið": "3", "úrslit": "tap"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "blöndal", "lið": "3", "úrslit": "tap"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "adrian", "lið": "3", "úrslit": "tap"}, {"dagsetning": "2026-10-22", "tímabil": "haust 2026", "nafn": "bjöggi", "lið": "3", "úrslit": "tap"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "sveinn", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "margeir", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "jonatan", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "krissi", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "helgi", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "gunnar", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "kári", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "hroar", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "illugi", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-10-29", "tímabil": "haust 2026", "nafn": "enok e", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "gunnar", "lið": "1", "úrslit": "sigur"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "sveinn", "lið": "1", "úrslit": "sigur"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "enok", "lið": "1", "úrslit": "sigur"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "oskar", "lið": "1", "úrslit": "sigur"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "blöndal", "lið": "1", "úrslit": "sigur"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "kári", "lið": "2", "úrslit": "tap"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "margeir", "lið": "2", "úrslit": "tap"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "jonatan", "lið": "2", "úrslit": "tap"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "helgi", "lið": "2", "úrslit": "tap"}, {"dagsetning": "2026-11-05", "tímabil": "haust 2026", "nafn": "enok e", "lið": "2", "úrslit": "tap"}, {"dagsetning": "2026-11-12", "tímabil": "haust 2026", "nafn": "gunnar", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-11-12", "tímabil": "haust 2026", "nafn": "margeir", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-11-12", "tímabil": "haust 2026", "nafn": "jonatan", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-11-12", "tímabil": "haust 2026", "nafn": "frikki", "lið": "1", "úrslit": "tap"}, {"dagsetning": "2026-11-12", "tímabil": "haust 2026", "nafn": "sveinn", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-11-12", "tímabil": "haust 2026", "nafn": "hroar", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-11-12", "tímabil": "haust 2026", "nafn": "illugi", "lið": "2", "úrslit": "sigur"}, {"dagsetning": "2026-11-12", "tímabil": "haust 2026", "nafn": "mihrie", "lið": "2", "úrslit": "sigur"}];
+
+const TEAM_COLORS = ['var(--t1)','var(--t2)','var(--t3)'];
+const LS_KEY = 'bumban-lid';
+const $ = s => document.querySelector(s);
+const norm = s => (s ?? '').toString().trim().toLowerCase();
+const num = v => { const n = parseFloat((v ?? '').toString().replace(',', '.')); return isNaN(n) ? 0 : n; };
+const cap = s => s.replace(/(^|\s)(\S)/g, (m, a, b) => a + b.toUpperCase());
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const fold = s => norm(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ð/g, 'd').replace(/þ/g, 'th').replace(/æ/g, 'ae').replace(/\s+/g, ' ');
+const slug = s => fold(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+function parseDate(s) {
+  s = (s ?? '').toString().trim(); let m;
+  if (m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)) return Date.UTC(+m[1], m[2] - 1, +m[3]);
+  if (m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/)) return Date.UTC(+m[3], m[2] - 1, +m[1]);
+  const t = Date.parse(s); return isNaN(t) ? NaN : t;
+}
+const ls = {
+  get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+  del: k => { try { localStorage.removeItem(k); } catch (e) {} }
+};
+
+let DATA = { leikmenn: [], upphaf: [], leikir: [], lid: [] };
+let TABLE = [];
+
+/* ---------- Gögn ---------- */
+function parseCSV(text) {
+  const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i+1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i+1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  const head = (rows.shift() || []).map(norm);
+  return rows.filter(r => r.some(v => v.trim() !== ''))
+             .map(r => Object.fromEntries(head.map((h, i) => [h, (r[i] ?? '').trim()])));
+}
+async function fetchTab(name) {
+  const url = `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(name)}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(name + ': ' + res.status);
+  return parseCSV(await res.text());
+}
+async function load() {
+  if (!CONFIG.sheetId) {
+    const demoAlias = { gunnar: 'gunni', daniel: 'danni', 'enok e': 'enoke' };
+    const names = [...new Set([...DEMO_UPPHAF.map(r => r.nafn), ...DEMO_LEIKIR.map(r => r.nafn)])];
+    DATA = { leikmenn: names.map(n => ({ nafn: n, virkur: 'já', 'gælunöfn': demoAlias[n] || '' })), upphaf: DEMO_UPPHAF, leikir: DEMO_LEIKIR, lid: [] };
+    $('#status').innerHTML = '<div class="banner">Sýnigögn úr Excel skjalinu, haust 2026. Settu sheetId í CONFIG í index.html til að tengja Google Sheet.</div>';
+    return;
+  }
+  try {
+    const [leikmenn, upphaf, leikir, lid] = await Promise.all([
+      fetchTab('Leikmenn'), fetchTab('Upphafsstaða'), fetchTab('Leikir'), fetchTab('Lið').catch(() => [])]);
+    DATA = { leikmenn, upphaf, leikir, lid };
+    $('#status').innerHTML = '';
+  } catch (e) {
+    $('#status').innerHTML = '<div class="banner err">Náði ekki að lesa Google Sheet skjalið. Athugaðu að sheetId sé rétt og að skjalinu sé deilt með „Allir með hlekkinn“. (' + esc(e.message) + ')</div>';
+  }
+}
+
+/* ---------- Staðan ---------- */
+function computeTable(skipT) {
+  const s = norm(CONFIG.season), m = new Map();
+  const get = n => { const k = norm(n); if (!m.has(k)) m.set(k, { nafn: k, leikir: 0, sigur: 0, jafntefli: 0, tap: 0, stig: 0, hist: [] }); return m.get(k); };
+  for (const r of DATA.upphaf) {
+    if (norm(r['tímabil']) !== s || !norm(r.nafn)) continue;
+    const p = get(r.nafn);
+    for (const k of ['leikir', 'sigur', 'jafntefli', 'tap', 'stig']) p[k] += num(r[k]);
+  }
+  for (const r of DATA.leikir) {
+    if (norm(r['tímabil']) !== s || !norm(r.nafn)) continue;
+    let u = norm(r['úrslit']); if (!u) continue;
+    if (skipT != null && parseDate(r.dagsetning) === skipT) continue;
+    if (u.startsWith('2')) u = '2. sæti';
+    const p = get(r.nafn); p.leikir++;
+    const t = parseDate(r.dagsetning); p.hist.push({ t: isNaN(t) ? 0 : t, i: p.hist.length, u });
+    if (u === '2. sæti') p.jafntefli++;           // 2. sæti telst sem jafntefli, eins og í Excel
+    else if (u in p && u !== 'leikir' && u !== 'stig') p[u]++;
+    p.stig += CONFIG.points[u] ?? 0;
+  }
+  const up = new Set(DATA.upphaf.filter(r => norm(r['tímabil']) === s && num(r.leikir) > 0).map(r => norm(r.nafn)));
+  return [...m.values()].map(p => ({ ...p, med: p.leikir ? p.stig / p.leikir : 0, trend: streak(p.hist), last: lastPlayed(p, up.has(p.nafn)) }))
+    .sort((a, b) => b.stig - a.stig || b.med - a.med || a.nafn.localeCompare(b.nafn, 'is'));
+}
+// Staðan núna, og breyting á sæti miðað við stöðuna fyrir síðasta kvöld
+function buildTable() {
+  TABLE = computeTable(null);
+  const s = norm(CONFIG.season);
+  const times = DATA.leikir.filter(r => norm(r['tímabil']) === s && norm(r['úrslit'])).map(r => parseDate(r.dagsetning)).filter(t => !isNaN(t));
+  if (!times.length) return;
+  const prev = new Map(computeTable(Math.max(...times)).map((p, i) => [p.nafn, i]));
+  TABLE.forEach((p, i) => p.move = prev.has(p.nafn) ? prev.get(p.nafn) - i : null);
+}
+// Síðasti leikur: nýjasti skráði leikur, eða upphafDate ef hann spilaði bara á tímabilinu sem er lagt saman
+const WEEK = 7 * 864e5;
+function lastPlayed(p, inUpphaf) {
+  const dated = p.hist.map(x => x.t).filter(t => t > 0);
+  let t = dated.length ? Math.max(...dated) : 0, approx = false;
+  const u = parseDate(CONFIG.upphafDate);
+  if (inUpphaf && u > t) { t = u; approx = true; }
+  if (!t) return null;
+  const now = new Date(), today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const weeks = Math.max(0, Math.floor((today - t) / WEEK));
+  return { t, weeks, approx, away: weeks > CONFIG.awayWeeks };
+}
+const MONTHS = ['jan.', 'feb.', 'mars', 'apr.', 'maí', 'júní', 'júlí', 'ág.', 'sept.', 'okt.', 'nóv.', 'des.'];
+const fmtDate = t => { const d = new Date(t); return `${d.getUTCDate()}. ${MONTHS[d.getUTCMonth()]}`; };
+const weeksText = l => !l ? '' : l.approx ? `${l.weeks}+ vikur` : l.weeks === 0 ? 'innan viku' : l.weeks === 1 ? 'fyrir 1 viku' : `fyrir ${l.weeks} vikum`;
+const awayHTML = l => l && l.away ? `<span class="away" title="Síðast með ${l.approx ? 'fyrir ' + fmtDate(l.t) : fmtDate(l.t)}">${l.weeks}${l.approx ? '+' : ''} v.</span>` : '';
+
+// Sigrar eða töp í röð, talið frá síðasta leik leikmanns. Jafntefli og 2. sæti rjúfa röðina.
+function streak(hist) {
+  const h = [...hist].sort((a, b) => b.t - a.t || b.i - a.i);
+  if (!h.length || (h[0].u !== 'sigur' && h[0].u !== 'tap')) return null;
+  let n = 0; while (n < h.length && h[n].u === h[0].u) n++;
+  return n >= CONFIG.streak ? { up: h[0].u === 'sigur', n } : null;
+}
+function moveHTML(p) {
+  if (p.move === undefined) return '';
+  if (p.move === null) return '<span class="mv new" title="Nýr á töflunni">nýr</span>';
+  if (p.move === 0) return '<span class="mv same" aria-label="Óbreytt sæti">–</span>';
+  const up = p.move > 0, n = Math.abs(p.move);
+  return `<span class="mv ${up ? 'up' : 'down'}" title="${up ? 'Upp' : 'Niður'} um ${n} frá síðasta kvöldi" aria-label="${up ? 'Upp' : 'Niður'} um ${n}">${up ? '▲' : '▼'}${n}</span>`;
+}
+function renderTable() {
+  $('#st-title').textContent = 'Staðan';
+  $('#st-sub').textContent = cap(CONFIG.season) + ', ' + TABLE.length + ' leikmenn';
+  $('#st-body').innerHTML = TABLE.length ? TABLE.map((p, i) => `<tr${p.last?.away ? ' class="is-away"' : ''}>
+    <td class="pos">${i + 1}${moveHTML(p)}</td><td class="name"><a href="#p-${slug(p.nafn)}">${esc(p.nafn)}</a>${awayHTML(p.last)}${p.trend ? `<span class="trend ${p.trend.up ? 'up' : 'down'}" title="${p.trend.n} ${p.trend.up ? 'sigrar' : 'töp'} í röð" aria-label="${p.trend.n} ${p.trend.up ? 'sigrar' : 'töp'} í röð">${p.trend.up ? '🔥' : '🧊'}${p.trend.n}</span>` : ''}</td><td>${p.leikir}</td><td>${p.sigur}</td>
+    <td>${p.jafntefli}</td><td>${p.tap}</td><td class="pts">${p.stig}</td><td>${p.med.toFixed(2).replace('.', ',')}</td></tr>`).join('')
+    : '<tr><td colspan="8" style="text-align:left">Engir leikir skráðir á þessu tímabili.</td></tr>';
+  const P = CONFIG.points;
+  $('#st-note').textContent = `Sigur ${P['sigur']} stig, jafntefli ${P['jafntefli']}, tap ${P['tap']}. Með 3 liðum fær 2. sæti ${P['2. sæti']} stig og telst sem jafntefli í J. Jöfn stig raðast eftir meðalstigum. Grátt = ekki spilað í meira en ${CONFIG.awayWeeks} vikur. ▲ og ▼ sýna breytingu á sæti frá síðasta kvöldi. 🔥 = ${CONFIG.streak}+ sigrar í röð, 🧊 = ${CONFIG.streak}+ töp í röð.`;
+}
+
+/* ---------- Velja lið ---------- */
+const picker = { selected: new Set(), extraNew: [], guests: [], n: 2 };
+function rosterNames() {
+  const ranked = TABLE.map(p => p.nafn);
+  const others = DATA.leikmenn.filter(r => norm(r.virkur) !== 'nei').map(r => norm(r.nafn))
+    .filter(n => n && !ranked.includes(n)).sort((a, b) => a.localeCompare(b, 'is'));
+  const inactive = new Set(DATA.leikmenn.filter(r => norm(r.virkur) === 'nei').map(r => norm(r.nafn)));
+  return [...ranked.filter(n => !inactive.has(n)), ...others, ...picker.extraNew.filter(n => !ranked.includes(n) && !others.includes(n))];
+}
+function renderRoster() {
+  const rank = new Map(TABLE.map((p, i) => [p.nafn, i + 1]));
+  const f = fold($('#pk-filter')?.value || '');
+  const items = rosterNames().filter(n => !f || fold(n).includes(f) || picker.selected.has(n)).map(n => `<li><label><input type="checkbox" value="${esc(n)}" ${picker.selected.has(n) ? 'checked' : ''}>
+      ${esc(n)}${awayHTML(TABLE.find(p => p.nafn === n)?.last)}<span class="r">${rank.has(n) ? rank.get(n) + '.' : 'nýr'}</span></label></li>`);
+  items.push(...picker.guests.map((g, i) => `<li><label style="text-transform:none">${esc(g)} <span class="r">gestur</span>
+      <button class="x" data-guest="${i}" aria-label="Fjarlægja ${esc(g)}">×</button></label></li>`));
+  $('#pk-roster').innerHTML = items.join('');
+  $('#pk-count').textContent = picker.selected.size + picker.guests.length;
+}
+function makeTeams() {
+  const rank = new Map(TABLE.map((p, i) => [p.nafn, i]));
+  const seeds = new Map(DATA.leikmenn.filter(r => num(r['röðun']) > 0).map(r => [norm(r.nafn), num(r['röðun'])]));
+  const sel = [...picker.selected];
+  const order = sel.filter(n => rank.has(n)).sort((a, b) => rank.get(a) - rank.get(b));
+  const fresh = sel.filter(n => !rank.has(n));
+  fresh.filter(n => seeds.has(n)).sort((a, b) => seeds.get(a) - seeds.get(b))
+       .forEach(n => order.splice(Math.min(seeds.get(n) - 1, order.length), 0, n));
+  fresh.filter(n => !seeds.has(n))
+       .forEach(n => order.splice(Math.floor(Math.random() * (order.length + 1)), 0, n));
+  const teams = Array.from({ length: picker.n }, () => []);
+  // 2 lið: til skiptis (1,3,5 / 2,4,6). 3 lið: snákur (1,6,7 / 2,5,8 / 3,4,9), eins og í Excel.
+  order.forEach((n, i) => {
+    const round = Math.floor(i / picker.n), pos = i % picker.n;
+    const t = picker.n === 3 && round % 2 === 1 ? picker.n - 1 - pos : pos;
+    teams[t].push({ nafn: n, gestur: false });
+  });
+  for (const g of picker.guests) {
+    let t = picker.n - 1;
+    for (let i = picker.n - 1; i >= 0; i--) if (teams[i].length < teams[t].length) t = i;
+    teams[t].push({ nafn: g, gestur: true });
+  }
+  return { teams, n: picker.n, created: new Date().toISOString() };
+}
+function saveTeams(state) { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+function loadTeams() { try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) { return null; } }
+// Lið vistuð í skjalinu (af hvaða síma sem er) eru notuð ef þau eru nýrri en liðin í þessum síma
+function teamsForResults() {
+  const local = loadTeams();
+  let remote = null; try { remote = JSON.parse(DATA.lid[0]?.['gögn'] || 'null'); } catch (e) {}
+  if (remote && (!local || remote.created > local.created)) return remote;
+  return local;
+}
+
+/* ---------- Vistun í skjalið (Apps Script) ---------- */
+async function post(action, data) {
+  if (!CONFIG.scriptUrl) return { ok: false, villa: 'Engin scriptUrl' };
+  let pin = ls.get('bumban-pin');
+  if (!pin) { pin = prompt('PIN fyrir skráningu'); if (!pin) return { ok: false, villa: 'Hætt við' }; }
+  try {
+    const res = await fetch(CONFIG.scriptUrl, { method: 'POST', body: JSON.stringify({ ...data, action, pin }) });
+    const j = await res.json();
+    if (j.ok) ls.set('bumban-pin', pin); else if (j.villa === 'Rangt PIN') ls.del('bumban-pin');
+    return j;
+  } catch (e) { return { ok: false, villa: 'Náði ekki sambandi við skjalið' }; }
+}
+
+/* ---------- Líma úr könnun ---------- */
+function aliasIndex() {
+  const idx = new Map(), add = (k, n) => { k = fold(k); if (!k) return; if (!idx.has(k)) idx.set(k, new Set()); idx.get(k).add(n); };
+  for (const r of DATA.leikmenn) { const n = norm(r.nafn); if (!n) continue; add(n, n); (r['gælunöfn'] || '').split(/[,;]/).forEach(a => add(a, n)); }
+  for (const p of TABLE) add(p.nafn, p.nafn);
+  let local = {}; try { local = JSON.parse(ls.get('bumban-alias') || '{}'); } catch (e) {}
+  for (const [a, n] of Object.entries(local)) add(a, n);
+  return idx;
+}
+function matchPasted(text) {
+  const idx = aliasIndex(), hit = [], miss = [];
+  const parts = text.split(/\n|,|;|\s+og\s+/).map(s => s.replace(/[^\p{L}\s.'+-]/gu, ' ').replace(/\s+/g, ' ').trim()).filter(s => s.length > 1);
+  for (const raw of parts) {
+    const words = fold(raw).split(' ');
+    const tries = [words.join(' '), words.slice(0, 2).join(' '), words[0]];
+    const found = tries.map(k => idx.get(k)).find(s => s && s.size === 1);
+    found ? hit.push([...found][0]) : miss.push(raw);
+  }
+  return { hit: [...new Set(hit)], miss: [...new Set(miss)] };
+}
+function renderPasteMisses(miss) {
+  const opts = rosterNames().map(n => `<option value="${esc(n)}">${esc(cap(n))}</option>`).join('');
+  $('#pk-paste-out').innerHTML = miss.length ? `<p class="hint">Þekkti ekki ${miss.length}. Veldu hver þetta er, eða merktu sem nýjan eða gest:</p><ul class="unm">` +
+    miss.map(m => `<li data-raw="${esc(m)}"><b>${esc(m)}</b><select aria-label="Hver er ${esc(m)}?"><option value="">Velja leikmann…</option>${opts}</select>
+      <button data-pm="link">Tengja</button><button data-pm="new">Nýr</button><button data-pm="guest">Gestur</button></li>`).join('') + '</ul>'
+    : '<p class="ok">Allir fundust.</p>';
+}
+
+function teamsHTML(state, movable) {
+  return `<div class="teams n${state.n}">` + state.teams.map((t, ti) => `
+    <div class="team" style="--tc:${TEAM_COLORS[ti]}"><h3>Lið ${ti + 1}<span>${t.length} manns</span></h3><ol>
+    ${t.map((p, pi) => `<li><button ${movable ? `data-move="${ti},${pi}"` : 'disabled style="cursor:default"'}>${esc(p.nafn)}${p.gestur ? ' <span class="g">gestur</span>' : ''}</button></li>`).join('')}
+    </ol></div>`).join('') + '</div>';
+}
+function renderPicked() {
+  const st = loadTeams();
+  if (!st) { $('#pk-out').innerHTML = ''; return; }
+  $('#pk-out').innerHTML = teamsHTML(st, true) +
+    `<p class="hint">Smelltu á nafn til að færa leikmann í næsta lið.</p>
+     <p class="hint" id="pk-sync"></p>
+     <div class="row"><button class="btn primary" id="pk-copy">Afrita fyrir Facebook</button>
+     <a class="btn" href="#urslit" style="text-decoration:none">Skrá úrslit eftir leik</a></div>`;
+}
+function fbText(st) {
+  return st.teams.map((t, i) => `Lið ${i + 1}: ` + t.map(p => cap(p.nafn) + (p.gestur ? ' (gestur)' : '')).join(', ')).join('\n');
+}
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+  const old = btn.textContent; btn.textContent = 'Afritað'; setTimeout(() => btn.textContent = old, 1600);
+}
+
+/* ---------- Úrslit ---------- */
+function lastThursday() {
+  const d = new Date(); d.setDate(d.getDate() - ((d.getDay() - 4 + 7) % 7));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function renderResults() {
+  const st = teamsForResults();
+  if (!st) { $('#rs-out').innerHTML = '<p class="sub">Engin lið valin enn. <a href="#lid">Veldu lið fyrst.</a></p>'; return; }
+  if (st.saved) { $('#rs-out').innerHTML = teamsHTML(st, false) + '<p class="ok">Úrslit fyrir þessi lið eru þegar vistuð.</p><p class="hint"><a href="#stadan">Sjá stöðuna</a> eða <a href="#lid">veldu ný lið</a>.</p>'; return; }
+  const dot = i => `<span class="dot" style="--tc:${TEAM_COLORS[i]}"></span>`;
+  const pickers = st.n === 2
+    ? `<div class="choices" role="radiogroup">
+        <label><input type="radio" name="r2" value="1">${dot(0)} Lið 1 vann</label>
+        <label><input type="radio" name="r2" value="0">Jafntefli</label>
+        <label><input type="radio" name="r2" value="2">${dot(1)} Lið 2 vann</label></div>`
+    : `<div class="row"><label class="lbl" for="rs-1">1. sæti</label><select id="rs-1">${[1,2,3].map(i => `<option value="${i}">Lið ${i}</option>`).join('')}</select></div>
+       <div class="row"><label class="lbl" for="rs-2">2. sæti</label><select id="rs-2">${[1,2,3].map(i => `<option value="${i}" ${i === 2 ? 'selected' : ''}>Lið ${i}</option>`).join('')}</select></div>`;
+  $('#rs-out').innerHTML = teamsHTML(st, false) +
+    `<div class="row"><label class="lbl" for="rs-date" style="align-self:center">Dagsetning</label><input type="date" id="rs-date" value="${lastThursday()}"></div>
+     ${pickers}
+     ${CONFIG.scriptUrl ? '<div class="row"><button class="btn primary" id="rs-save">Vista úrslit</button><button class="btn" id="rs-copy">Afrita í staðinn</button></div><p class="hint" id="rs-msg">Gestir eru ekki með.</p>'
+       : '<button class="btn primary" id="rs-copy">Afrita fyrir skjalið</button><p class="hint" id="rs-msg">Límdu í fyrstu tómu línu í flipanum Leikir. Gestir eru ekki með.</p>'}
+     <textarea id="rs-text" readonly aria-label="Línur fyrir skjalið"></textarea>`;
+}
+function resultRows() {
+  const st = teamsForResults(), res = [];
+  if (st.n === 2) {
+    const v = document.querySelector('input[name=r2]:checked'); if (!v) return { err: 'Veldu úrslit.' };
+    const w = +v.value; for (let i = 1; i <= 2; i++) res[i] = w === 0 ? 'jafntefli' : (w === i ? 'sigur' : 'tap');
+  } else {
+    const a = +$('#rs-1').value, b = +$('#rs-2').value;
+    if (a === b) return { err: '1. og 2. sæti geta ekki verið sama lið.' };
+    for (let i = 1; i <= 3; i++) res[i] = i === a ? 'sigur' : (i === b ? '2. sæti' : 'tap');
+  }
+  const date = $('#rs-date').value;
+  const rows = st.teams.flatMap((t, ti) => t.filter(p => !p.gestur).map(p => [date, CONFIG.season, p.nafn, ti + 1, res[ti + 1]]));
+  return { rows, text: rows.map(r => r.join('\t')).join('\n') };
+}
+
+/* ---------- Leikmaður ---------- */
+const PTS = u => CONFIG.points[u.startsWith('2') ? '2. sæti' : u] ?? 0;
+function teammates(nafn) {
+  const s = norm(CONFIG.season), groups = new Map();
+  for (const r of DATA.leikir) {
+    const u = norm(r['úrslit']), l = norm(r['lið']);
+    if (norm(r['tímabil']) !== s || !u || !l) continue;
+    const k = r.dagsetning + '|' + l;
+    if (!groups.has(k)) groups.set(k, { u, names: [] });
+    groups.get(k).names.push(norm(r.nafn));
+  }
+  const m = new Map();
+  for (const g of groups.values()) {
+    if (!g.names.includes(nafn)) continue;
+    for (const o of g.names) {
+      if (o === nafn) continue;
+      if (!m.has(o)) m.set(o, { nafn: o, n: 0, stig: 0, s: 0, j: 0, t: 0 });
+      const x = m.get(o); x.n++; x.stig += PTS(g.u);
+      g.u === 'sigur' ? x.s++ : g.u === 'tap' ? x.t++ : x.j++;
+    }
+  }
+  return [...m.values()].filter(x => x.n >= CONFIG.minTogether).map(x => ({ ...x, med: x.stig / x.n }));
+}
+function renderPlayer(sl) {
+  const i = TABLE.findIndex(p => slug(p.nafn) === sl), p = TABLE[i];
+  if (!p) { $('#pl-out').innerHTML = '<a class="back" href="#stadan">‹ Staðan</a><p>Fann ekki leikmanninn.</p>'; return; }
+  const form = [...p.hist].sort((a, b) => b.t - a.t || b.i - a.i).slice(0, 5).reverse();
+  const letter = u => u === 'sigur' ? 'S' : u === 'tap' ? 'T' : u.startsWith('2') ? '2' : 'J';
+  const mates = teammates(p.nafn);
+  const line = x => `<li><a href="#p-${slug(x.nafn)}">${esc(x.nafn)}</a><small>${x.n} leikir, ${x.s}-${x.j}-${x.t}, ${x.med.toFixed(2).replace('.', ',')} stig/leik</small></li>`;
+  const best = [...mates].sort((a, b) => b.med - a.med || b.n - a.n).slice(0, 3);
+  const worst = [...mates].sort((a, b) => a.med - b.med || b.n - a.n).filter(x => !best.includes(x)).slice(0, 3);
+  const none = `<p class="hint">Of fáir leikir saman enn (lágmark ${CONFIG.minTogether}).</p>`;
+  $('#pl-out').innerHTML = `<a class="back" href="#stadan">‹ Staðan</a>
+    <h2 style="text-transform:capitalize">${esc(p.nafn)}${p.trend ? ` <span class="trend ${p.trend.up ? 'up' : 'down'}">${p.trend.up ? '🔥' : '🧊'}${p.trend.n}</span>` : ''}</h2>
+    <p class="sub">${i + 1}. sæti, ${cap(CONFIG.season)}${p.last ? `. Síðast með ${p.last.approx ? 'fyrir ' + fmtDate(p.last.t) : fmtDate(p.last.t)} (${weeksText(p.last)})` : ''}${p.last?.away ? ' <span class="away">Langt síðan</span>' : ''}</p>
+    <div class="stats"><div><b>${p.stig}</b><span>stig</span></div><div><b>${p.leikir}</b><span>leikir</span></div>
+      <div><b>${p.sigur}-${p.jafntefli}-${p.tap}</b><span>S-J-T</span></div><div><b>${p.med.toFixed(2).replace('.', ',')}</b><span>meðalstig</span></div></div>
+    <h3 class="sec">Síðustu leikir</h3>
+    ${form.length ? `<div class="form">${form.map(h => `<span class="f-${h.u.startsWith('2') ? '2' : h.u}" title="${h.u}">${letter(h.u)}</span>`).join('')}</div>` : '<p class="hint">Engir skráðir leikir.</p>'}
+    <h3 class="sec">Bestu samherjar</h3>${best.length ? `<ul class="mates">${best.map(line).join('')}</ul>` : none}
+    <h3 class="sec">Verstu samherjar</h3>${worst.length ? `<ul class="mates">${worst.map(line).join('')}</ul>` : none}
+    <p class="hint" style="margin-top:12px">Reiknað út frá stigum í leikjum þar sem þið voruð saman í liði, minnst ${CONFIG.minTogether} leikir. Aðeins kvöld þar sem lið eru skráð.</p>`;
+}
+
+/* ---------- Leiðir og atburðir ---------- */
+function route() {
+  const hsh = location.hash.slice(1);
+  const v = hsh.startsWith('p-') ? 'player' : ['stadan', 'lid', 'urslit'].includes(hsh) ? hsh : 'stadan';
+  document.querySelectorAll('main section').forEach(s => s.hidden = s.id !== 'v-' + v);
+  if (v === 'player') { renderPlayer(hsh.slice(2)); window.scrollTo(0, 0); }
+  document.querySelectorAll('nav a').forEach(a => a.dataset.view === v ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+  if (v === 'lid') { renderRoster(); renderPicked(); }
+  if (v === 'urslit') renderResults();
+}
+document.addEventListener('change', e => {
+  if (e.target.closest('#pk-roster') && e.target.type === 'checkbox') {
+    e.target.checked ? picker.selected.add(e.target.value) : picker.selected.delete(e.target.value);
+    $('#pk-count').textContent = picker.selected.size + picker.guests.length;
+  }
+});
+document.addEventListener('input', e => { if (e.target.id === 'pk-filter') renderRoster(); });
+function addNewPlayer(n) {
+  if (!n) return;
+  if (!picker.extraNew.includes(n)) picker.extraNew.push(n);
+  picker.selected.add(n);
+  if (CONFIG.scriptUrl) post('player', { nafn: n });
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.id === 'pk-paste-go') {
+    const r = matchPasted($('#pk-paste').value);
+    r.hit.forEach(n => picker.selected.add(n));
+    renderRoster(); renderPasteMisses(r.miss);
+  }
+  if (t.dataset.pm) {
+    const li = t.closest('li'), raw = li.dataset.raw;
+    if (t.dataset.pm === 'link') {
+      const n = li.querySelector('select').value; if (!n) return;
+      picker.selected.add(n);
+      let local = {}; try { local = JSON.parse(ls.get('bumban-alias') || '{}'); } catch (e) {}
+      local[fold(raw)] = n; ls.set('bumban-alias', JSON.stringify(local));
+      if (CONFIG.scriptUrl) post('alias', { nafn: n, alias: norm(raw) });
+    }
+    if (t.dataset.pm === 'new') addNewPlayer(norm(raw));
+    if (t.dataset.pm === 'guest') picker.guests.push(raw);
+    li.remove(); renderRoster();
+  }
+  if (t.dataset.n) { picker.n = +t.dataset.n; document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', b === t)); }
+  if (t.dataset.guest) { e.preventDefault(); picker.guests.splice(+t.dataset.guest, 1); renderRoster(); }
+  if (t.id === 'pk-new-add') { const n = norm($('#pk-new').value); if (n) { addNewPlayer(n); $('#pk-new').value = ''; renderRoster(); } }
+  if (t.id === 'pk-guest-add') { const g = $('#pk-guest').value.trim(); if (g) { picker.guests.push(g); $('#pk-guest').value = ''; renderRoster(); } }
+  if (t.id === 'pk-go') {
+    if (picker.selected.size + picker.guests.length < picker.n) return;
+    saveTeams(makeTeams()); renderPicked();
+  }
+  if (t.dataset.move) {
+    const [ti, pi] = t.dataset.move.split(',').map(Number), st = loadTeams();
+    const [p] = st.teams[ti].splice(pi, 1); st.teams[(ti + 1) % st.n].push(p); saveTeams(st); renderPicked();
+  }
+  if (t.id === 'pk-copy') {
+    copy(fbText(loadTeams()), t);
+    if (CONFIG.scriptUrl) {
+      $('#pk-sync').textContent = 'Vista lið í skjalið…';
+      const r = await post('teams', { state: loadTeams() });
+      $('#pk-sync').innerHTML = r.ok ? '<span class="ok">Lið vistuð. Hver sem er getur skráð úrslitin.</span>' : '<span class="bad">' + esc(r.villa || 'Villa') + '</span>';
+    }
+  }
+  if (t.id === 'rs-save') {
+    const r = resultRows();
+    if (r.err) { $('#rs-msg').innerHTML = '<span class="bad">' + r.err + '</span>'; return; }
+    t.disabled = true; $('#rs-msg').textContent = 'Vista…';
+    const res = await post('results', { rows: r.rows });
+    if (!res.ok) { t.disabled = false; $('#rs-msg').innerHTML = '<span class="bad">' + esc(res.villa || 'Villa') + '. Reyndu aftur eða notaðu Afrita.</span>'; return; }
+    const st = teamsForResults(); st.saved = true; saveTeams(st);
+    await load(); buildTable(); renderTable();
+    $('#rs-out').innerHTML = teamsHTML(st, false) + `<p class="ok">Vistað: ${r.rows.length} leikmenn. Staðan er uppfærð.</p><p><a class="btn" href="#stadan" style="text-decoration:none">Sjá stöðuna</a></p>`;
+  }
+  if (t.id === 'rs-copy') {
+    const r = resultRows();
+    if (r.err) { $('#rs-text').value = r.err; return; }
+    $('#rs-text').value = r.text; copy(r.text, t);
+  }
+});
+for (const [inp, btn] of [['#pk-new', '#pk-new-add'], ['#pk-guest', '#pk-guest-add']])
+  $(inp).addEventListener('keydown', e => { if (e.key === 'Enter') $(btn).click(); });
+window.addEventListener('hashchange', route);
+
+(async () => { await load(); buildTable(); renderTable(); route(); })();
+</script>
+</body>
+</html>
