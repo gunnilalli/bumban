@@ -216,7 +216,7 @@ textarea{width:100%;min-height:150px;margin-top:12px;padding:10px;background:var
    úrslit, lið og nýja leikmenn beint í skjalið, svo allt virkar úr síma. */
 const CONFIG = {
   sheetId: '13LgRldA3jOaq04UtzOJrmNqkLey41ewe_y7Yav3_cqU',
-  scriptUrl: '',
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbwVvqBI0IBwp0L4kHm_7gD0Ox0E9AAzdBLQGnzz9hHcY_lA01mXLL_0lTRXD81H7LRttQ/exec',
   minTogether: 2,
   awayWeeks: 3,          // meira en þetta margar vikur frá síðasta leik = merkt
   upphafDate: '2026-09-30',  // leikir í Upphafsstaða teljast spilaðir í síðasta lagi þennan dag   // lágmarksfjöldi leikja saman til að birtast sem besti/versti samherji
@@ -445,10 +445,18 @@ function aliasIndex() {
 }
 function matchPasted(text) {
   const idx = aliasIndex(), hit = [], miss = [];
-  const parts = text.split(/\n|,|;|\s+og\s+/).map(s => s.replace(/[^\p{L}\s.'+-]/gu, ' ').replace(/\s+/g, ' ').trim()).filter(s => s.length > 1);
+  // Hunsa fyrirsagnir eins og „Já síðast:“ og svör úr könnuninni
+  const STOP = new Set(['ja', 'nei', 'kannski', 'kem', 'maeti', 'mæti', 'yes', 'no', 'maybe', 'going', 'votes', 'svaradi', 'kosid']);
+  const parts = text.split(/\n|,|;|\s+og\s+/)
+    .filter(s => !s.trim().endsWith(':'))
+    .map(s => s.replace(/[^\p{L}\s.'+-]/gu, ' ').replace(/\s+/g, ' ').trim())
+    .filter(s => s.length > 1 && !STOP.has(fold(s).split(' ')[0]));
+  const allKeys = [...idx.keys()];
   for (const raw of parts) {
     const words = fold(raw).split(' ');
-    const tries = [words.join(' '), words.slice(0, 2).join(' '), words[0]];
+    // Fornafn eitt og sér gildir ekki ef annar leikmaður heitir sama fornafni + meira (t.d. enok og enok e)
+    const firstOk = !allKeys.some(k => k.startsWith(words[0] + ' '));
+    const tries = [words.join(' '), words.slice(0, 2).join(' '), firstOk ? words[0] : null].filter(Boolean);
     const found = tries.map(k => idx.get(k)).find(s => s && s.size === 1);
     found ? hit.push([...found][0]) : miss.push(raw);
   }
@@ -494,7 +502,7 @@ function lastThursday() {
 function renderResults() {
   const st = teamsForResults();
   if (!st) { $('#rs-out').innerHTML = '<p class="sub">Engin lið valin enn. <a href="#lid">Veldu lið fyrst.</a></p>'; return; }
-  if (st.saved) { $('#rs-out').innerHTML = teamsHTML(st, false) + '<p class="ok">Úrslit fyrir þessi lið eru þegar vistuð.</p><p class="hint"><a href="#stadan">Sjá stöðuna</a> eða <a href="#lid">veldu ný lið</a>.</p>'; return; }
+  if (st.saved) { $('#rs-out').innerHTML = teamsHTML(st, false) + '<p class="ok">Úrslit fyrir þessi lið eru þegar vistuð.</p><p class="hint"><a href="#stadan">Sjá stöðuna</a> eða <a href="#lid">veldu ný lið</a>.</p>' + `${CONFIG.scriptUrl ? '<div class="row"><button class="btn" id="rs-undo">Afturkalla úrslit</button></div><p class="hint" id="rs-msg"></p>' : ''}`; return; }
   const dot = i => `<span class="dot" style="--tc:${TEAM_COLORS[i]}"></span>`;
   const pickers = st.n === 2
     ? `<div class="choices" role="radiogroup">
@@ -633,6 +641,15 @@ document.addEventListener('click', async e => {
       $('#pk-sync').innerHTML = r.ok ? '<span class="ok">Lið vistuð. Hver sem er getur skráð úrslitin.</span>' : '<span class="bad">' + esc(r.villa || 'Villa') + '</span>';
     }
   }
+  if (t.id === 'rs-undo') {
+    if (!confirm('Eyða síðustu úrslitum úr skjalinu?')) return;
+    t.disabled = true; $('#rs-msg').textContent = 'Afturkalla…';
+    const res = await post('undo', {});
+    if (!res.ok) { t.disabled = false; $('#rs-msg').innerHTML = '<span class="bad">' + esc(res.villa || 'Villa') + '</span>'; return; }
+    const st = teamsForResults(); if (st) { st.saved = false; st.created = new Date().toISOString(); saveTeams(st); }
+    await load(); buildTable(); renderTable(); renderResults();
+    $('#rs-out').insertAdjacentHTML('afterbegin', `<p class="ok">Afturkallað: ${res.n} línum eytt. Þú getur vistað aftur.</p>`);
+  }
   if (t.id === 'rs-save') {
     const r = resultRows();
     if (r.err) { $('#rs-msg').innerHTML = '<span class="bad">' + r.err + '</span>'; return; }
@@ -641,7 +658,7 @@ document.addEventListener('click', async e => {
     if (!res.ok) { t.disabled = false; $('#rs-msg').innerHTML = '<span class="bad">' + esc(res.villa || 'Villa') + '. Reyndu aftur eða notaðu Afrita.</span>'; return; }
     const st = teamsForResults(); st.saved = true; saveTeams(st);
     await load(); buildTable(); renderTable();
-    $('#rs-out').innerHTML = teamsHTML(st, false) + `<p class="ok">Vistað: ${r.rows.length} leikmenn. Staðan er uppfærð.</p><p><a class="btn" href="#stadan" style="text-decoration:none">Sjá stöðuna</a></p>`;
+    $('#rs-out').innerHTML = teamsHTML(st, false) + `<p class="ok">Vistað: ${r.rows.length} leikmenn. Staðan er uppfærð.</p><div class="row"><a class="btn primary" href="#stadan" style="text-decoration:none">Sjá stöðuna</a><button class="btn" id="rs-undo">Afturkalla</button></div><p class="hint" id="rs-msg"></p>`;
   }
   if (t.id === 'rs-copy') {
     const r = resultRows();
